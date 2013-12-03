@@ -1,0 +1,1153 @@
+\documentclass[9pt,compress,xcolor*pst,handout]{beamer}
+\mode<presentation>
+
+%\input{rogers_beamer_settings.tex}
+%\usepackage{times}
+\usepackage[english]{babel}
+%\usepackage[latin1]{inputenc}
+\usepackage{graphicx,subfigure}
+\usepackage{color}
+%\usepackage{tweaklist}
+\selectlanguage{english}
+\usepackage{etex}
+%\usepackage{pstricks}
+%\usepackage{pst-node}
+\usepackage{amssymb}
+\usepackage{amsmath}
+%\usepackage{tikz}
+%\usepackage{calc}
+\usepackage{amssymb}
+\usepackage{apacite}
+%\usepackage{multicol}
+\bibliographystyle{apacite} %CSLI bib format
+
+%\usetheme[right]{Marburg}
+\usetheme{PaloAlto}
+\usefonttheme{structurebold}
+\usefonttheme{professionalfonts}
+\usecolortheme{crane}
+%\setbeamercovered{invisible}
+%\usetheme[right,hideothersubsections]{Goettingen}
+
+%\newcommand{\newblock}{}
+%\newenvironment{nobulletenv}
+%{\only{%
+%\setbeamertemplate{itemize item}{}%
+%\setbeamertemplate{itemize subitem}{}%
+%\setbeamertemplate{itemize subsubitem}{}}}
+%{}
+
+\newcommand{\itemhook}{\setlength{\topsep}{0pt}%
+  \setlength{\itemsep}{-5pt}}
+
+\setkeys{Gin}{width=\textwidth}
+\definecolor{lightgrey}{gray}{0.9}
+\definecolor{grey}{gray}{0.7}
+\definecolor{darkgrey}{gray}{0.95}
+\definecolor{bglightgrey}{gray}{0.3}
+
+
+\definecolor{accentYellow}{rgb}{0.99,0.76,0.06}
+%\definecolor{accentYellow}{rgb}{0.99,0.91,0.68}
+\definecolor{accentBlue}{rgb}{0.06,0.06,0.76}
+
+%\definecolor{MyGray}{rgb}{0.96,0.97,0.98}
+\definecolor{MyBackgroundBg}{gray}{0.8}
+\definecolor{MyQuestionBg}{rgb}{0.99,0.76,0.06}
+\definecolor{MyProblemBg}{rgb}{0.06,0.06,0.76}
+\setbeamercovered{dynamic}
+\setbeamercolor{sidebar}{bg=lightgrey}
+
+\newenvironment{Question}[1]%          environment name
+{\begin{itemize}\vspace{1ex}\par\color{MyOrange}\item<+->[\color{MyOrange}{\bf Q:}] #1}% begin code
+{\end{itemize}}%
+
+%\newcommand{\footercredit}[1]{
+% \setbox1=\hbox{\emph{#1}}
+% \newdimen\xlocation
+% \xlocation = 8cm
+% \advance\xlocation by -\the\wd1
+%  \begin{textblock*}{\the\wd1}(\xlocation,2cm)
+%    \box\1
+%  \end{textblock*}
+%  \begin{textblock*}{5cm}(7.5cm,8.8cm)
+%    \emph{#1}
+%  \end{textblock*}
+%}
+
+
+
+
+\title[LI539 Mixed Effect Models]{Lecture 4: Tools for data analysis, exploration, and transformation: plyr and reshape2}
+\subtitle{LSA 2013, LI539\\{\em Mixed Effect Models}}
+\author{Dave Kleinschmidt}
+\institute{\includegraphics[height=.25\textheight,keepaspectratio=true]{kleinschmidt.jpg}\\[\medskipamount]Brain and Cognitive Sciences\\University of Rochester}
+% \institute{Brain and Cognitive Sciences\\University of Rochester}
+
+
+\begin{document}
+
+<<preamble, echo=FALSE, results='hide', cache=FALSE, message=F>>=
+library(plyr)
+library(reshape2)
+
+library(ggplot2)
+library(stringr)
+
+# set knitr chunk option defaults for this document
+opts_chunk$set(results='markup', echo=TRUE, cache=T, autodep=T, warning=F, message=F, prompt=F,
+               fig.width=4, fig.height=4, out.width='0.5\\textwidth', fig.pos='!h', fig.lp='fig:',
+               tidy=F, size='scriptsize')
+
+data(lexdec, package='languageR')
+
+# set ggplot theme globally
+theme_set(theme_bw())
+
+@
+
+\frame[plain]{\titlepage}
+
+\section{Introduction}
+
+\begin{frame}[fragile]
+  \frametitle{Data manipulation and exploration with plyr and reshape}
+  \begin{itemize}[<+->]
+  \item Today we'll look at two data manipulation tools which are flexible and powerful, but easy to use once you grasp a few concepts.
+  \item First is \verb+plyr+, which extends functional programming tools in R (like \verb+lapply+) and makes the common data-analysis split-apply-combine procedure easy and elegant.
+  \item Second is \verb+reshape+(2), which makes it easy to change the format of data frames and arrays from ``wide'' (observations spread across columns) and ``long'' (observations spread across rows) formats.
+  \item Both are written by Hadley Wickham (like \verb+ggplot2+).
+  \item \href{http://www.bcs.rochester.edu/people/dkleinschmidt/assets/lsa13-plyr-reshape.Rnw}{(you can download the \texttt{knitr} source for these slides on my website)}
+  \end{itemize}
+\end{frame}
+
+
+
+\section{Split-apply-combine: plyr}
+
+\begin{frame}[fragile]
+  \frametitle{split-apply-combine}
+<<>>=
+freqEffects <- ddply(lexdec, .(Subject), function(df) {coef(lm(RT~Frequency, data=df))})
+@ 
+  \begin{columns}
+    \begin{column}{0.45\textwidth}
+<<echo=F>>=
+head(freqEffects)
+@ 
+    \end{column}
+    \begin{column}{0.55\textwidth}
+<<lexdec-freq-effect-bysub, echo=F, out.width='0.9\\textwidth'>>=
+ggplot(lexdec, aes(x=Frequency, y=RT)) +
+  geom_point() +
+  facet_wrap(~Subject) + 
+  geom_abline(data=freqEffects, aes(slope=Frequency, intercept=`(Intercept)`), color='red')
+@ 
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{split-apply-combine}
+  \begin{itemize}[<+->]
+  \item \verb+plyr+ is built around the conceptual structure of \textbf{split-apply-combine}
+  \item \textbf{split} your data up in some way.
+  \item \textbf{apply} some function to each part.
+  \item \textbf{combine} the results into the output structure.
+  \item This is a common structure in many data analysis tasks, and R already has some facilities for it.
+  \item \verb+plyr+ unifies these in a single interface and provides some nice helper functions, and also makes the split-apply-combine structure explicit.
+  \item Before we get to \verb+plyr+ itself, let's have a short review of some basic functional programming concepts.
+  \end{itemize}
+\end{frame}
+
+\subsection{Functions are your friends}
+
+  
+\begin{frame}[fragile]
+  \frametitle{functions: how do they work}
+  \begin{itemize}
+  \item Formally: take some input, do something, and produce some output.
+  \item You use functions in R all the time.
+  \item Most of the functions you're familiar with have names and are built in (or provided by libraries).
+<<>>=
+mean(runif(100))
+@ 
+  \item But there's nothing special about functions in R, they're objects, just like any other data type
+  \item This means they can, for instance, be assigned to variables: 
+<<>>=
+f <- mean
+f(runif(100))
+@
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{(anonymous) functions: how do they work}
+  \begin{itemize}
+  \item Functions are objects that are created with the \verb+function+ keyword
+<<>>=
+function(x) sum(x)/length(x)
+@
+\item Functions are by their nature ``anonymous'' in R, and have no name, in the same way that the vector \verb+c(1,2,3)+ is just an object, with no intrinsic name (this is unlike other languages, like Java or C).
+\item New functions can be assigned to variables to be called over and over again
+<<>>=
+mymean <- function(x) sum(x)/length(x)
+mymean(runif(100))
+mymean(runif(100, 1, 2))
+@
+\item ...or just evaluated once
+<<>>=
+(function(x) sum(x)/length(x)) (runif(100))
+@
+(notice the parentheses around the whole function definition)
+\end{itemize}
+\end{frame}
+
+
+{% background material
+  \setbeamercolor{background canvas}{bg=MyBackgroundBg}
+
+\begin{frame}[fragile]
+  \frametitle{functions, environments, and closures}
+  \begin{itemize}
+  \item A function object lists an environment when it's printed to the console
+  \item This is because functions are really \emph{closures} in R.
+  \item They include information about the values of variables \emph{when the function was created}.
+  \item You can take advantage of this to make ``function factories'':
+<<>>=
+make.power <- function(n) {
+  return(function(x) x^n)
+}
+my.square <- make.power(2)
+my.square(3)
+(make.power(4)) (2)
+@ 
+\item See Hadley Wickham's excellent chapter on functional programming in R for more on this: \url{https://github.com/hadley/devtools/wiki/Functional-programming}
+  \end{itemize}
+\end{frame}
+
+}%end background material
+
+\begin{frame}[fragile]
+  \frametitle{functions: how do they work}
+  \begin{itemize}
+  \item Function declarations have three parts:
+    \begin{enumerate}
+    \item The \verb+function+ keyword
+    \item Comma-separated list of {\color{accentYellow}function arguments}
+    \item The {\color{accentBlue}body of the function}, which is an expression (multi-statement expression should be enclosed in braces \verb+{}+).  The value of the expression is used for the returned value of the function if no \verb+return+ statement is encountered in the body.
+    \end{enumerate}
+  \item For instance:
+
+\begin{semiverbatim}
+  mean.and.var <- function\color{accentYellow}{(x)} \color{accentBlue}{\{
+    m <- mean(x)
+    v <- var(x)
+    data.frame(mean=m, var=v)
+  \}}
+\end{semiverbatim}
+  \end{itemize}
+\end{frame}
+
+
+{% background material
+  \setbeamercolor{background canvas}{bg=MyBackgroundBg}
+
+\begin{frame}[fragile]
+  \frametitle{a few function tips}
+  \begin{itemize}
+  \item The ellipsis \verb+...+ can be included in the arguments list and ``captures'' any arguments not specifically named.  This is useful to pass on other arguments to other function calls in the body (as we'll see later).
+  \item You can specify default values for arguments by \verb+argument=default+.
+  \item R has very sophisticated argument resolution when a function is called.  It first assigns named arguments by name, and then unnamed arguments are assigned positionally to unfilled arguments.  So you can say something like
+<<>>=
+sd(rnorm(sd=5, mean=1, 100))
+@       
+where the last argument is interpreted as \verb+n+, even though the specification of \verb+rnorm+ calls for \verb+n+ to be first: 
+<<>>=
+rnorm
+@ 
+\end{itemize}
+\end{frame}
+
+}%end background material
+
+
+\subsection{apply yourself}
+
+\begin{frame}[fragile]
+  \frametitle{Your first foray into functional programming}
+  \begin{itemize}[<+->]
+  \item R is a functional programming language at its heart.
+    
+  \item One of the most basic operations of functional programming is to apply a function individually to items in a list.
+  \item In base R, this is done via \verb+lapply+ (for list-apply) and friends:
+<<>>=
+list.o.nums <- list(runif(100), rnorm(100), rpois(100, lambda=1))
+lapply(list.o.nums, mean)
+@ 
+\item The ``big three'' apply functions in R are \verb+lapply+ (takes and returns a list), \verb+sapply+ (like \verb+lapply+ but attempts to simplify output into a vector or matrix), and \verb+apply+ (which works on arrays).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{unleash the power of anonymous functions}
+  \begin{itemize}[<+->]
+  \item When combined with \verb+lapply+ and friends, anonymous functions are extremely powerful.
+  \item You could, for instance, run a simulation with a range of parameter values: 
+<<>>=
+sapply(1:10, function(n) rpois(5, lambda=n))
+@
+\item Or repeat the same simulation multiple times, calculating a summary statistics for each repetition:
+<<>>=
+sapply(1:10, function(n) mean(rnorm(n=5, mean=0, sd=1)))
+@ 
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{split-apply-combine}
+  \begin{itemize}
+  \item You might also use \verb+sapply+ calculate the mean RT (for instance) for each subject, by using \verb+split+ to create a list of each subject's RTs:
+<<>>=
+data(lexdec, package='languageR')
+RT.bysub <- with(lexdec, split(RT, Subject))
+RT.means.bysub <- sapply(RT.bysub, mean)
+head(data.frame(RT.mean=RT.means.bysub))
+@ 
+  \end{itemize}
+\end{frame}
+
+\subsection{split-apply-combine}
+
+\begin{frame}[fragile]
+  \frametitle{split-apply-combine}
+  \begin{itemize}
+  \item This is a common data-analysis task: split up the data in some way, analyze each piece, and then put the results back together again.
+  \item The \verb+plyr+ package (Wickham, 2011) was designed to facilitate this process.
+  \item For instance, instead of that \verb+split+/\verb+sapply+ combo, we could use the \verb+ddply+ function: 
+<<>>= 
+library(plyr) 
+head(ddply(lexdec, .(Subject), function(df) data.frame(RT.mean=mean(df$RT)))) 
+@
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{split-apply-combine}
+The \verb+ddply+ call has three parts:
+<<eval=F>>=
+ddply(lexdec, .(Subject), function(df) data.frame(RT.mean=mean(df$RT)))
+@ 
+    \begin{enumerate}
+    \item The data, \verb+lexdec+
+    \item The splitting variables, \verb+.(Subject)+.  The \verb+.()+ function is a utility function which quotes a list of variables or expressions.  We could just as easily have used the variable names as strings \verb+c("Subject")+ or (one-sided) formula notation \verb+~Subject+.
+    \item The function to apply to the individual pieces.  In this case, the function takes a \verb+data.frame+ as input and returns a \verb+data.frame+ which has one variable---\verb+RT.mean+.  The splitting variables are automatically added before the results are combined.
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{plyr functions: input}
+  \begin{itemize}
+  \item Plyr commands are named based on their input and output.
+  \item The first letter refers to the format of the input.
+  \item The input determines how the data is split:
+    \begin{itemize}[<+->]
+    \item \verb+d*ply(.data, .variables, .fun, ...)+ takes data frame input and splits it into subsets based on the unique combinations of the \verb+.variables+.
+    \item \verb+l*ply(.data, .fun, ...)+ takes list input, splitting the list and passing each element to \verb+.fun+.
+    \item \verb+a*ply(.data, .margins, .fun, ...)+ takes array input, and splits it into sub arrays by \verb+.margins+ (just like base R \verb+apply+).  For instance, if \verb+.margins = 1+ and \verb+.data+ is a three-D array, then \verb+.data[1, , ], .data[2, , ], ...+ are each passed to \verb+.fun+.
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{plyr functions: output}
+  \begin{itemize}
+  \item The second letter of the command name refers to the output format
+  \item The output determines how the data is combined at the end:
+    \begin{itemize}[<+->]
+    \item \verb+*dply+ takes the result of its \verb+.fun+ and turns it into a data frame, then adds the splitting variables (values of \verb+.variables+ for \verb+ddply+, list names for \verb+ldply+, or array dimnames for \verb+adply+) before \verb+rbind+ing the individual data frames together
+    \item \verb+*lply+ just returns a list of the result of applying \verb+.fun+ to each individual split, just like \verb+lapply+, but additionally adds names based on the splitting variables.
+    \item \verb+*aply+ tries to assemble the output of \verb+.fun+ into a big array, where the combine dimensions are the last ones.  For instance, if \verb+.fun+ returns a two-dimensional array (always of the same size), and there were three splitting variables or dimensions originally, then the output would be a five-dimensional array, with dimensions 1 to 2 corresponding to the \verb+.fun+ output dimensions and 2 to 5 the splitting variables.  
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{try it: output behavior of plyr commands}
+\begin{block}{Task}
+ Let's use the \verb+lexdec+ data set to explore the output behavior of \verb+plyr+.  
+Start with this \verb+ddply+ call (copy and paste from the slides pdf, or from the accompanying \verb+.R+ file):
+<<ddply-output-exercises, eval=F>>=
+library(plyr)
+data(lexdec, package='languageR')       # load the dataset if it isn't already
+ddply(lexdec, .(PrevType, Class), function(df) with(df, data.frame(meanRT=mean(RT))))
+@
+\begin{enumerate}
+\item What does this do?  Look at the \verb+lexdec+ data frame, run the command, and interpret the output.
+\item Are these numbers ``really'' different?  Change the function to also return the variance (or standard deviation or standard error, or whatever other measure you think might be useful).
+\item Change it to return a list instead using \verb+dlply+.  The output might look a little funny.  Why?  Use \verb+str+ to investigate the output.
+\item Now make it return an array using \verb+daply+.  The output will probably look totally wrong.  Why?  (Hint: use \verb+str+ to look at the output, again).  Fix it so that it does what you'd expect/like it to do.
+\end{enumerate}
+  
+\end{block}
+
+\end{frame}
+
+\subsection{Convenience functions}
+
+\begin{frame}[fragile]
+  \frametitle{subset}
+  \begin{itemize}[<+->]
+  \item An added level of convenience comes from the fact that any extra arguments to, e.g., \verb+ddply+ are passed to the function which operates on each piece
+  \item This means you can use functions like \verb+subset+ or \verb+transform+ which take a data frame and return another data frame.
+  \item For instance, to find the trial with the slowest RT for each subject, split by \verb+Subject+ and then use \verb+subset+:
+<<>>=
+slowestTrials <- ddply(lexdec, .(Subject), subset, RT==max(RT))
+head(slowestTrials[, c('Subject', 'RT', 'Trial', 'Word')])
+@ 
+\item This is equivalent to both
+<<eval=FALSE>>=
+ddply(lexdec, .(Subject), function(df, ...) subset(df, ...), RT==max(RT))
+ddply(lexdec, .(Subject), function(df) subset(df, RT==max(RT)))
+@ 
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{transform}
+  \begin{itemize}[<+->]
+  \item Another super convenient function is \verb+transform+, which adds variables to a data frame (or replaces them) using expressions evaluated using the data frame as the environment (like the \verb+with+ function).
+  \item For instance, we often standardize measures before regression (center and possibly scale).
+  \item If the reaction time distributions of individual subjects are very different, then we might want to standardize them for each subject individually.  In ``verbose'' \verb+ddply+, we could do
+<<eval=F>>=
+ddply(lexdec, .(Subject), function(df) {
+  df$RT.s <- scale(df$RT)
+  return(df)
+})
+@
+\item However, we can be more concise using \verb+transform+:
+<<>>=
+lexdecScaledRT <- ddply(lexdec, .(Subject), transform, RT.s=scale(RT))
+@ 
+This expresses very transparently what we're trying to do: transform the data by adding a variable for the scaled (zero mean and unit sd) reaction time.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{transform}
+<<summarise-RT-dist-plots, out.width='0.45\\textwidth', echo=FALSE, results='hide'>>=
+ggplot(lexdecScaledRT, aes(x=RT, group=Subject)) + geom_density()
+ggplot(lexdecScaledRT, aes(x=RT.s, group=Subject)) + geom_density()
+@ 
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{summarise}
+  \begin{itemize}
+  \item \verb+plyr+ also provides the convenience function \begin{semiverbatim}summari\alert{s}e\end{semiverbatim} (with an s!).
+  \item This function, like \verb+transform+, takes the form
+<<eval=FALSE>>=
+summarise(.data, summVar1=expr1, summVar2=expr2, ...)
+@
+but unlike transform it creates a \emph{new} data frame with only the specified summary variables.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{summarise}
+  \begin{itemize}
+  \item For instance, to find the mean and variance of each subject's RT, we could use
+<<>>=
+lexdec.RTsumm <- ddply(lexdec, .(Subject), summarise, mean=mean(RT), var=var(RT))
+head(lexdec.RTsumm)
+@ 
+  \item This is more concise than the similar example a few slides ago
+<<eval=F>>=
+ddply(lexdec, .(Subject), function(df) with(df, data.frame(meanRT=mean(RT))))
+@ 
+and, like with \verb+transform+, makes our intentions much clearer.
+  \end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+  \frametitle{transform+summarise exercises}
+  \begin{block}{Task}
+    Let's investigate the relative ordering of RTs for different words
+    \begin{enumerate}
+    \item Add a new variable \verb+RTrank+ which is the rank-order of the RT for each trial, by subject.  That is, \verb+RTrank=1+ for that subject's fastest trial, \verb+2+ for the second-fastest, etc.  Hint: \verb+rank+ finds the rank indices of a vector.
+    \item Find the average RT rank for each word, using \verb+summarise+.
+    \item Plot the relationship between the word frequencies and their average rank.
+    \item If you're feeling fancy, put errorbars on the words showing the 25\% and 75\% quantiles.
+    \item Which word has the highest average RT rank? The lowest?
+    \end{enumerate}
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{transform+summarise solution}
+<<>>=
+lexdec <- ddply(lexdec, .(Subject), transform, RTrank=rank(RT))
+
+
+word.rt.ranks <- ddply(lexdec, .(Word, Frequency), summarise,
+                       RTrank=mean(RTrank),
+                       RTrank25=quantile(RTrank, 0.25), RTrank75=quantile(RTrank, 0.75))
+@ 
+
+\begin{columns}
+  \begin{column}{0.5\textwidth}
+<<out.width='0.9\\textwidth'>>=
+ggplot(word.rt.ranks, aes(x=Frequency, y=RTrank, ymin=RTrank25, ymax=RTrank75)) +
+  geom_pointrange()
+@ 
+  \end{column}
+  \begin{column}{0.5\textwidth}
+<<>>=
+subset(word.rt.ranks,
+       RTrank %in% c(max(RTrank), min(RTrank)))
+@ 
+  \end{column}
+
+\end{columns}
+
+\end{frame}
+
+\subsection{Use cases}
+
+\subsubsection{Data analysis}
+
+\begin{frame}[fragile]
+  \frametitle{example use cases}
+  Let's go through some exampes of how you might use \verb+plyr+ for
+  \begin{itemize}
+  \item Data analysis and exploration.
+  \item Exploring models through simulation.
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Checking distribution of errors}
+  \begin{itemize}
+  \item Let's check to see whether the errors in \verb+lexdec+ responses are evenly distributed across native and non-native speakers.
+  \item There are a couple of ways to do this.  We could use \verb+ddply+ and \verb+summarise+ like above:
+<<>>=
+ddply(lexdec, .(NativeLanguage), summarise, acc=mean(Correct=='correct'))
+@ 
+\item We could also use \verb+daply+ to get an array of raw counts of correct and incorrect responses, by splitting on \verb+NativeLanguage+ \emph{and} \verb+Correct+ and then extracting the number of rows in each split:
+<<>>=
+daply(lexdec, .(NativeLanguage, Correct), nrow)
+@ 
+  \end{itemize}
+\end{frame}
+
+{% background material
+  \setbeamercolor{background canvas}{bg=MyBackgroundBg}
+  
+\begin{frame}[fragile]
+  \frametitle{Checking distribution of errors}
+  Why might we want the latter option?  It's the format that \verb+chisq.test+ expects:
+<<>>=
+correctCounts <- daply(lexdec, .(NativeLanguage, Correct), nrow)
+chisq.test(correctCounts)
+@ 
+\end{frame}
+} % end background material
+
+
+\begin{frame}[fragile]
+  \frametitle{Estimate the frequency effect for each subject}
+  \begin{itemize}[<+->]
+  \item Let's estimate the effect of frequency on RT for each subject separately (perhaps to get a sense of whether to include random slopes in a mixed effects model).
+  \item We can do this using a combination of \verb+ddply+ and \verb+coef+:
+<<>>=
+subjectSlopes <- ddply(lexdec, .(Subject), function(df) {coef(lm(RT~Frequency, data=df))})
+@
+\item We can see that these slopes show a fair amount of variability, 
+<<>>=
+summary(subjectSlopes$Frequency)
+@
+so it might make sense to include random slopes in later regression modeling.
+\end{itemize}    
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Estimate the frequency effect for each subject}
+As a sanity check, we can also plot the fitted regression lines against the original data points:
+<<subject-slopes-rt>>=
+ggplot(lexdec, aes(x=Frequency, y=RT)) +
+  geom_point() +
+  facet_wrap(~Subject) + 
+  geom_abline(data=subjectSlopes, aes(slope=Frequency, intercept=`(Intercept)`), color='red')
+@ 
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{data exploration and errorbars}
+  \begin{itemize}
+  \item Investigate interaction between frequency and native language background.
+  \item Let's first construct a factor variable which is a binary high frequency-low frequency variable.
+<<>>=
+lexdec <- transform(lexdec,
+                    FreqHiLo=factor(ifelse(Frequency>median(Frequency), 
+                                           'high', 'low'),
+                                    levels=c('low', 'high')))
+@
+\item Then, use \verb+ddply+ and \verb+summarise+ to create a summary table for your conditions of interest 
+<<results='hide', echo=FALSE>>=
+# this is necessary because of something strange in how knitr/plyr are
+# using environments
+se <- function(x) sd(x)/sqrt(length(x))
+@ 
+<<>>=
+se <- function(x) sd(x)/sqrt(length(x))
+langfreq.summ <- ddply(lexdec,
+                       .(NativeLanguage, FreqHiLo),
+                       summarise, mean=mean(RT), se=se(RT))
+@ 
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{data exploration and errorbars}
+  \begin{itemize}
+  \item We can quickly plot condition means and 95\% CIs using \verb+ggplot+ (etc.) and the \verb+ddply+ output
+<<fig.width=6, out.width='0.75\\textwidth'>>=
+ggplot(langfreq.summ, aes(x=FreqHiLo, color=NativeLanguage,
+                          y=mean, ymin=mean-1.96*se, ymax=mean+1.96*se)) +
+  geom_point() +
+  geom_errorbar(width=0.1) + 
+  geom_line(aes(group=NativeLanguage))
+@
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Wow! What a \emph{huge} effect!}
+  \begin{itemize}
+  \item ...but wait.
+  \item Calculating the standard error in this way assumes that, for the purposes of comparing the condition means, each observed RT is an independent draw from the same normal distribution.
+  \item But in fact, they are \emph{not}: observations are grouped both by subject and by item (word).
+  \item One way of dealing with this: look at the by-subject standard error, by averaging within each subject and then treating each subject as an independent draw from the underlying condition.
+  \item This is the ``by-subject'' analysis, like the ``F1'' ANOVA.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{by-subject standard errors with ddply}
+  Computing the by-subject standard errors is a two-step process, both of which can be done with a single \verb+ddply+ command: 
+  \begin{enumerate}
+  \item Average within each subject and combination of conditions:
+<<>>=
+langfreq.bysub <- ddply(lexdec, .(NativeLanguage, FreqHiLo, Subject),
+                        summarise, RT=mean(RT))
+@ 
+  \item Then, calculate the condition means and standard errors as before:
+<<>>=
+langfreq.bysub.summ <- ddply(langfreq.bysub,
+                             .(NativeLanguage, FreqHiLo),
+                             summarise, mean=mean(RT), se=se(RT))
+@ 
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{by-subject standard errors}
+  When we plot the resulting error bars, the effects look much smaller compared to the variability across subjects (and small number of subjects):
+<<by-subject-errorbars, fig.width=6, out.width='0.75\\textwidth'>>=
+ggplot(langfreq.bysub.summ, aes(x=FreqHiLo, color=NativeLanguage,
+                                y=mean, ymin=mean-1.96*se, ymax=mean+1.96*se)) +
+  geom_point() +
+  geom_errorbar(width=0.1) + 
+  geom_line(aes(group=NativeLanguage))
+@ 
+
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{try it: by-item standard errors}
+  \begin{block}{Task}
+    \begin{itemize}
+    \item Use \verb+ddply+ to do the ``F2'' or by-item analysis, finding \emph{by-item} standard errors, treating the words as items.
+    \item Plot the resulting errorbars, and use this (and the actual \verb+ddply+ output) to interpret the results.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{by-item standard errors (solution)}
+<<>>=
+langfreq.byitem <- ddply(lexdec, .(NativeLanguage, FreqHiLo, Word), summarise, RT=mean(RT))
+langfreq.byitem.summ <- ddply(langfreq.byitem,
+                             .(NativeLanguage, FreqHiLo),
+                             summarise, mean=mean(RT), se=se(RT))
+
+## ggplot(langfreq.byitem.summ, aes(x=FreqHiLo, color=NativeLanguage,
+##                           y=mean, ymin=mean-2*se, ymax=mean+2*se)) +
+##   geom_point() +
+##   geom_errorbar(width=0.1) + 
+##   geom_line(aes(group=NativeLanguage))
+@ 
+
+\end{frame}
+
+{% background material
+  \setbeamercolor{background canvas}{bg=MyBackgroundBg}
+  
+\begin{frame}[fragile]
+  \frametitle{A few other plyr tricks}
+  \begin{itemize}
+  \item The \verb+plyr+ functions \verb+m*ply+ and \verb+r*ply+ are wrappers for other forms which make simulations more convenient.  Check out the documentation (\verb+?mdply+) and the \verb+plyr+ article in J. Stat. Software.
+  \item Because they combine things in nice ways, \verb+plyr+ functions can help R data functions play nicely together.
+    \begin{itemize}
+    \item To concatenate a list of data frames into one big data frame, you can use \verb+ldply(list.of.dfs, I)+ (the identity function \verb+I+ just returns its input).
+    \item To ``shatter'' an array into a data frame where the dimension names are stored in columns, you can use \verb+adply(an.array, 1:ndim(an.array), I)+.  Any margins left out then index rows.  If any dimensions are named, they will be transferred to the data frame in a smart way.
+    \end{itemize}
+  \item Use \verb+subset+ and \verb+ddply+ to remove outliers subject-by-subject
+  \item Check balance (number of trials/subjects in each condition) using \verb+nrow+ and \verb+ddply+ of \verb+daply+ (like the correct/incorrect example).
+  \end{itemize}
+\end{frame}
+} %end background material
+
+\subsubsection{Modeling and simulation}
+
+<<echo=F, results='hide', fig.show='hide'>>=
+library(plyr)
+library(mvtnorm)
+library(lme4)
+
+make.data.generator <- function(true.effects=c(0,0),
+                                resid.var=1,
+                                ranef.var=diag(c(1,1)),
+                                n.subj=24,
+                                n.obs=24
+                                ) 
+{   
+  # create design matrix for our made up experiment
+  data.str <- data.frame(freq=factor(c(rep('high', n.obs/2), rep('low', n.obs/2))))
+  contrasts(data.str$freq) <- contr.sum(2)
+  model.mat <- model.matrix(~ 1 + freq, data.str)
+  
+  generate.data <- function() {
+    # sample data set
+    simulated.data <- rdply(n.subj, {
+      beta <- t(rmvnorm(n=1, sigma=ranef.var)) + true.effects
+      expected.RT <- model.mat %*% beta
+      epsilon <- rnorm(n=length(expected.RT), mean=0, sd=sqrt(resid.var))
+      data.frame(data.str,
+                 RT=expected.RT + epsilon)
+    })
+    names(simulated.data)[1] <- 'subject'
+    simulated.data
+  }
+}
+
+fit.models <- function(simulated.data) {
+  # fit models and extract coefs
+  lm.coefs <- coefficients(summary(lm(RT ~ 1+freq, simulated.data)))[, 1:3]
+  rand.int.coefs <- summary(lmer(RT ~ 1+freq + (1|subject), simulated.data))@coefs
+  rand.slope.coefs <- summary(lmer(RT ~ 1+freq + (1+freq|subject), simulated.data))@coefs
+  # format output all pretty
+  rbind(data.frame(model='lm', predictor=rownames(lm.coefs), lm.coefs),
+        data.frame(model='rand.int', predictor=rownames(rand.int.coefs), rand.int.coefs),
+        data.frame(model='rand.slope', predictor=rownames(rand.slope.coefs), rand.slope.coefs))
+}
+
+
+gen.dat <- make.data.generator()
+
+simulations <- rdply(.n=100,
+                     fit.models(gen.dat()),
+                     .progress='text')
+
+head(simulations, n=20)
+sim.m <- melt(simulations, measure.var=c('Estimate', 'Std..Error', 't.value'))
+head(sim.m)
+
+ddply(simulations, .(model, predictor), summarise, type1err=mean(abs(t.value)>1.96))
+
+@ 
+
+\begin{frame}[fragile]
+  \frametitle{Simulating data sets and model exploration}
+<<data-simulation-model-fitting-preview, fig.width=5, fig.height=3.5, out.width='\\textwidth', echo=F, results='hide'>>=
+
+ggplot(simulations, aes(x=t.value, color=model)) + 
+  geom_vline(xintercept=c(-1.96, 1.96), color='#888888', linetype=3)  +
+  scale_x_continuous('t value') + 
+  geom_density() +
+  facet_grid(predictor~.)
+
+@ 
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{Simulating data sets and model exploration}
+  \begin{itemize}[<+->]
+  \item The best way to understand a model is to simulate fake data and see what the model does with it.
+  \item Frequently the process goes as follows:
+    \begin{enumerate}
+    \item Pick some range of parameter values (random effect variance vs. residual variance).
+    \item Generate some data using those parameters
+    \item Fit model to that data, and record summary statistics.
+    \end{enumerate}
+
+  \item This fits well within the split-apply-combine pattern of \verb+plyr+.
+  \item For example, let's look at how \textbf{not accounting for random slopes and intercepts inflates Type I error rates}.
+  \item We'll generate fake data for a binary ``frequency'' variable which has a true effect of 0, then fit \verb+lm+ and \verb+lmer+ models with random intercept and slope.
+  \item Let's start simple, fitting the models to \emph{one} set of parameters, repeating the simulation 100 times.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{step 1: simulate data}
+<<eval=F>>=
+library(plyr)
+library(mvtnorm)
+library(lme4)
+
+make.data.generator <- function(true.effects=c(0,0),
+                                resid.var=1,
+                                ranef.var=diag(c(1,1)),
+                                n.subj=24,
+                                n.obs=24
+                                ) 
+{   
+  # create design matrix for our made up experiment
+  data.str <- data.frame(freq=factor(c(rep('high', n.obs/2), rep('low', n.obs/2))))
+  contrasts(data.str$freq) <- contr.sum(2)
+  model.mat <- model.matrix(~ 1 + freq, data.str)
+  
+  generate.data <- function() {
+    # sample data set under mixed effects model with random slope/intercepts
+    simulated.data <- rdply(n.subj, {
+      beta <- t(rmvnorm(n=1, sigma=ranef.var)) + true.effects
+      expected.RT <- model.mat %*% beta
+      epsilon <- rnorm(n=length(expected.RT), mean=0, sd=sqrt(resid.var))
+      data.frame(data.str,
+                 RT=expected.RT + epsilon)
+    })
+    names(simulated.data)[1] <- 'subject'
+    simulated.data
+  }
+}
+@ 
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{step 2: fit model}
+<<eval=F>>=
+fit.models <- function(simulated.data) {
+  # fit models and extract coefs
+  lm.coefs <- coefficients(summary(lm(RT ~ 1+freq, simulated.data)))[, 1:3]
+  rand.int.coefs <- summary(lmer(RT ~ 1+freq + (1|subject), simulated.data))@coefs
+  rand.slope.coefs <- summary(lmer(RT ~ 1+freq + (1+freq|subject), simulated.data))@coefs
+  # format output all pretty
+  rbind(data.frame(model='lm', predictor=rownames(lm.coefs), lm.coefs),
+        data.frame(model='rand.int', predictor=rownames(rand.int.coefs), rand.int.coefs),
+        data.frame(model='rand.slope', predictor=rownames(rand.slope.coefs), rand.slope.coefs))
+}
+@ 
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{step 3: put it together + repeat}
+<<eval=F>>=
+gen.dat <- make.data.generator()
+simulations <- rdply(.n=100,
+                     fit.models(gen.dat()),
+                     .progress='text')
+@ 
+<<>>=
+head(simulations)
+daply(simulations, .(model, predictor), function(df) type1err=mean(abs(df$t.value)>1.96))
+@ 
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{step 4: visualize}
+<<fig.width=5, fig.height=3.5, out.width='0.75\\textwidth'>>=
+# use reshape2::melt to get the data into a more convenient format (see next section)
+ggplot(simulations, aes(x=t.value, color=model)) +
+  geom_vline(xintercept=c(-1.96, 1.96), color='#888888', linetype=3) + 
+  scale_x_continuous('t value') + 
+  geom_density() +
+  facet_grid(predictor~.)
+@ 
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{different parameter values}
+  \begin{itemize}
+  \item What if we want to run the simulation with different sets of parameter values?
+  \item Create a data frame of parameters, using \verb+expand.grid+ on arguments which have the same names as the arguments to \verb+make.data.generator+.
+<<>>=
+head(params <- expand.grid(n.obs=c(4, 16, 64), n.subj=c(4, 16, 64)))
+@ 
+  \item And then use \verb+mdply+ on the result.
+<<eval=F>>=
+man.simulations <- mdply(params, function(...) {
+                           make.data <- make.data.generator(...)
+                           rdply(.n=100, fit.models(make.data()))
+                         }, .progress='text')
+@
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{digression: mdply}
+<<eval=F>>=
+mdply(params, function(...) {
+  make.data <- make.data.generator(...)
+  rdply(.n=100, fit.models(make.data()))
+}, .progress='text')
+@
+\begin{itemize}
+\item \verb+mdply+ is like \verb+Map+: it passes the variables in a data frame (split row-by-row) as named arguments to the function.  The \verb+function(...) {}+ syntax means that the function will accept any named arguments, and then recycle them wherever the \verb+...+ occurs anywhere inside the body.  Thus, this \verb+mdply+ will pass the columns of \verb+params+ as arguments to the \verb+make.data.generator()+ function, no matter which parameters you specify.
+\item This specific example (where the parameters are \verb+n.obs+ and \verb+n.subj+) is equivalent to:
+\end{itemize}
+
+<<eval=FALSE>>=
+ddply(params, .(n.obs, n.subj), function(df) {
+  make.data <- make.data.generator(n.obs=df$n.obs, n.subj=df$n.subj)
+  rdply(.n=100, .fun=fit.models(make.data()))
+}, .progress='text')
+@ 
+\end{frame}
+
+\section{Data wide and long: reshape(2)}
+
+\begin{frame}[fragile]
+  \frametitle{reshape2}
+  (If we have time): talk about changing format of data using \verb+melt+ and \verb+cast+ from the \verb+reshape2+ package.
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{What does your data look like?}
+  \begin{itemize}
+<<echo=F, results='hide'>>=
+ld.long <- melt(lexdec[, c('Subject', 'Trial', 'RT', 'Correct')], measure.var=c('RT', 'Correct'))
+ld.wide <- dcast(ld.long, Subject ~ Trial+variable)
+@   
+  \item Data doesn't always look like tools like \verb+ggplot+ (or \verb+ddply+) expect it to.
+  \item What if your experiment spits out a data file where each trial is a different column?
+
+  \item The lexical decision data set might look like this:
+<<echo=F>>=
+ld.wide[1:7, 1:7]
+@
+(there are missing values because non-word trials are excluded)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Wide vs. long data}
+  There are two ways of structuring data:
+  
+  \begin{columns}[c]
+    \column{0.5\textwidth}
+<<echo=F>>=
+ld.long[1:5, ]
+@ 
+    \textbf{long} Each observation gets exactly one row, with values in ``id'' columns giving identifying information (like subject, trial, whether the observed value is a correct/incorrect response or a RT observation, etc.)
+    \column{0.5\textwidth}
+<<echo=F>>=
+ld.wide[1:5, 1:4]
+@ 
+    \textbf{wide} Each row contains all the observations for a unique combination of identifying variables (say, one subject).  Column names identify the kind of observation in that row (trial number, observation type).
+  \end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{reshaping data}
+  \begin{itemize}
+  \item Converting between wide and long data representations is a common task in data analysis
+  \item (especially data import/cleaning)
+  \item The \verb+reshape2+ package streamlines this process in R.
+  \item (Most of the functionality of \verb+reshape2+ is a special case of what \verb+plyr+ does).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{melt and cast}
+  \begin{itemize}
+  \item Two main functions in \verb+reshape2+
+  \item \verb+melt+ converts an array or data frame into a long format.
+  \item \verb+dcast+ and \verb+acast+ convert ``molten'' data into a range of different shapes from long to wide.
+  \end{itemize}
+\end{frame}
+
+\subsection{melt}
+
+\begin{frame}[fragile]
+  \frametitle{melt with you, (I'll stop the world and)}
+  \begin{itemize}
+  \item Let's start with an example.
+
+  \item Here's the wide data frame from above:
+<<>>=
+ld.wide[1:5, 1:7]
+@
+\item When you \verb+melt+ data, you have to specify which variables (columns) are \textbf{id variables} and which are \textbf{measure variables}.
+<<>>=
+head(ld.m <- melt(ld.wide, id.var='Subject', na.rm=T))
+@ 
+    
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{melt}
+  \begin{itemize}
+  \item Now use \verb+str_split+ (from the \verb+stringr+ package) to separate the trial number and measure information.
+<<>>=
+require(stringr)
+trials.and.vars <- ldply(str_split(ld.m$variable, '_'))
+names(trials.and.vars) <- c('Trial', 'measure')
+@
+  \item \verb+str_split+ returns a list of splits but we can use \verb+ldply+ to convert to a dataframe, to which we add informative names.
+  \item The extracted trial numbers and RT/correct indicators can then be combined with the melted data with \verb+cbind+.
+<<>>=
+head(ld.m <- cbind(ld.m, trials.and.vars))
+@ 
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{melt syntax}
+  \begin{itemize}
+
+  \item To specify the measure and id variables, use \verb+measure.vars=+ and \verb+id.vars=+ arguments.
+  \item You can specify them as indices (column numbers) or names.
+  \item \verb+melt+ will try to guess the id and measure variables if you don't specify them.
+  \item If you specify only measure vars, \verb+melt+ will treat the other variables as id variables (and vice-versa)
+  \item If you want some variables ommitted, specify the measure and id variables that you want and the others will be dropped.
+  \end{itemize}
+\end{frame}
+
+\subsection{cast}
+
+\begin{frame}[fragile]
+  \frametitle{cast}
+  \begin{itemize}
+  \item \verb+melt+ gets your data into a ``raw material'' that can be easily converted to other more useful formats.
+  \item Molten data can be converted to different shapes using the \verb+*cast+ commands.
+  \item \verb+dcast+ creates a data frame, and \verb+acast+ creates an array.
+  \item Both commands take molten data and a formula which defines the new shape.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{cast}
+  \begin{itemize}
+  \item \verb+dcast+ takes a two-dimensional formula.  The left hand side tells which variables determine the rows, and the right side the columns
+  \item Let's put RT and correct in their own columns.  The \verb+ld.m$measure+ variable indicates whether the \verb+ld.m$value+ is an RT or a correct measure, so we put that variable on the right-hand side of the formula.
+<<>>=
+head(dcast(ld.m, Subject+Trial ~ measure))
+@
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{cast}
+  \begin{itemize}[<+->]
+\item We can also use the shorthand \verb+...+ to indicate all other (non-value) variables:
+<<>>=
+head(dcast(ld.m, ... ~ measure))
+@
+\item But this is no good here because \verb+ld.m$variable+ also encodes information about \verb+measure+, so we have to remove it first to be able to use \verb+...+
+<<>>=
+ld.m$variable <- NULL
+head(dcast(ld.m, ... ~ measure))
+@ 
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{cast syntax}
+  \begin{itemize}
+  \item Specify the shape of the ``cast'' data using a formula.  For each combination of the values of variables on the left-hand side, there will be one row, and likewise for columns with the right-hand side.
+  \item For \verb+dcast+, the data frame will also have left-hand variables in columns in the resulting data frame.  Right-hand variables will have their values \verb+paste+ed together as column names for the other columns.
+  \item If you want higher-dimensional output, you can use \verb+acast+ which creates an array (specify dimensions like \verb/dim1var1 ~ dim2var1 + dim2var2 ~ dim3var1/).
+  \item If there is no variable called \verb+value+, then \verb+cast+ will try to guess.  You can override the defaults by specifying the \verb+value.var=+ argument.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{cast aggregation}
+  \begin{itemize}
+  \item If the formula results in more than one value in each cell, you need to specify an aggregating function (like in \verb+ddply+) via the \verb+fun.aggregate=+ argument (you can abbreviate to \verb+fun.agg=+).
+  \item The default is \verb+length+ which tells you how many observations are in that cell.
+<<>>=
+head(dcast(ld.m, Subject ~ measure))
+@ 
+  \item The function you specify must return a single value (more constrained than \verb+plyr+).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{"but can't I just do this in Excel?"}
+  \begin{itemize}
+  \item You can!
+  \item But it will be tedious and you \emph{will} make mistakes.
+  \item Using tools designed for these data-manipulation tasks makes you be explicit about the things you are doing to your data.
+  \item And when you are done, you have a script which is a complete record of what you did (and, if you're using knitr, a nicely formatted report, too).
+  \end{itemize}
+\end{frame}
+
+\subsection{reshape and plyr}
+
+\begin{frame}[fragile]
+  \frametitle{plyr and reshape (melt)}
+  \begin{itemize}[<+->]
+  \item The \verb+reshape+ library operations are conceptually related to the split-apply-combine logic of \verb+plyr+.
+  \item Question: what's the \verb+plyr+ equivalent of the \verb+melt+ command we saw before?
+<<results='hide'>>=
+melt(ld.wide, id.var='Subject', na.rm=T)
+@
+\item Remember what \verb+melt+ does: split the data by the id variables, and rearrange the measure variable columns so that they're in one \verb+value+ column, moving the column names into a new \verb+variable+ column.
+  \begin{onlyenv}<+->
+<<results='hide'>>=
+ddply(ld.wide, .(Subject), function(df) {
+  vars <- names(df)
+  vals <- t(df)
+  dimnames(vals) <- NULL
+  return(subset(data.frame(variable=vars, value=vals),
+                variable != 'Subject' & !is.na(value)))
+})
+@ 
+  \end{onlyenv}
+
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{plyr and reshape (cast)}
+  Question: how would you write the \verb+dcast+ command from before?
+<<results='hide'>>=
+head(dcast(ld.m, Subject+Trial ~ measure))
+@ 
+\begin{onlyenv}<2->
+<<>>=
+head(ddply(ld.m, .(Subject, Trial), function(df) {
+  res <- data.frame(t(df$value))
+  names(res) <- df$measure
+  return(res)
+}))
+@ 
+\end{onlyenv}
+\end{frame}
+
+
+\end{document}
