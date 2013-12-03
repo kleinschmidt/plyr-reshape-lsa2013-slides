@@ -495,8 +495,9 @@ lexdec <- ddply(lexdec, .(Subject), transform, RTrank=rank(RT))
 
 
 word.rt.ranks <- ddply(lexdec, .(Word, Frequency), summarise,
-                       RTrank=mean(RTrank),
-                       RTrank25=quantile(RTrank, 0.25), RTrank75=quantile(RTrank, 0.75))
+                       RTrank25=quantile(RTrank, 0.25),
+                       RTrank75=quantile(RTrank, 0.75),
+                       RTrank=mean(RTrank))
 @ 
 
 \begin{columns}
